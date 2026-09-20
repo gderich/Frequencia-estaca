@@ -33,7 +33,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 </style>
 </head>
 <body>
-<header><div class="head"><div><h1>Frequência • Sacramental Extraordinária</h1><div class="sub">Estaca Messejana</div></div><div id="status" class="status">Conectando…</div></div></header>
+<header><div class="head"><div><h1>Frequência • Sacramental Extraordinária</h1><div class="sub">Estaca Messejana • v3.1</div></div><div id="status" class="status">Conectando…</div></div></header>
 <main>
 <section id="setup" class="card setup">
 <h2>Identificar este aparelho</h2>
@@ -104,12 +104,29 @@ async function registrar(ala,q){
 }
 async function desfazer(){
  const i=identidade();
- const meus=registros.filter(r=>r.recepcionista===i.nome && r.entrada===i.entrada && r.quantidade>0).sort((a,b)=>new Date(b.criado_em)-new Date(a.criado_em));
+ // IDs já anulados por correções anteriores deste banco
+ const anulados=new Set(
+   registros
+     .filter(r=>r.quantidade<0 && typeof r.dispositivo==="string" && r.dispositivo.startsWith("CORREÇÃO:"))
+     .map(r=>Number(r.dispositivo.split(":")[1]))
+     .filter(Number.isFinite)
+ );
+ const meus=registros
+   .filter(r=>r.recepcionista===i.nome && r.entrada===i.entrada && r.quantidade>0 && !anulados.has(Number(r.id)))
+   .sort((a,b)=>new Date(b.criado_em)-new Date(a.criado_em));
  if(!meus.length){toast("Nenhum registro seu para desfazer");return}
  const r=meus[0];
- if(!confirm(`Desfazer ${r.ala} +${r.quantidade}?`))return;
- const {error}=await sb.from("registros").insert({ala:r.ala,quantidade:-r.quantidade,recepcionista:i.nome,entrada:i.entrada,dispositivo:"CORREÇÃO"});
- if(error){toast("Não foi possível desfazer");return} toast("Correção registrada");await carregar();
+ if(!confirm(`Desfazer seu último registro: ${r.ala} +${r.quantidade}?`))return;
+ const {error}=await sb.from("registros").insert({
+   ala:r.ala,
+   quantidade:-r.quantidade,
+   recepcionista:i.nome,
+   entrada:i.entrada,
+   dispositivo:`CORREÇÃO:${r.id}`
+ });
+ if(error){toast("Não foi possível desfazer");return}
+ toast(`${r.ala} -${r.quantidade} corrigido`);
+ await carregar();
 }
 function entrar(){
  const i=identidade(); if(!i.nome)return;
@@ -120,7 +137,7 @@ $("trocar").onclick=()=>{$("app").classList.add("hidden");$("setup").classList.r
 $("desfazer").onclick=desfazer;$("atualizar").onclick=carregar;
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");$("recepcao").classList.toggle("hidden",b.dataset.tab!=="recepcao");$("painel").classList.toggle("hidden",b.dataset.tab!=="painel")});
 $("csv").onclick=()=>{let s="data_hora,ala,quantidade,recepcionista,entrada\n"+registros.map(r=>[r.criado_em,r.ala,r.quantidade,r.recepcionista,r.entrada].map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(",")).join("\n");let a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+s],{type:"text/csv"}));a.download="frequencia_estaca_messejana.csv";a.click()};
-sb.channel("registros-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"registros"},payload=>{registros.push(payload.new);render();$("status").textContent="🟢 Sincronizado"}).subscribe(status=>{$("status").textContent=status==="SUBSCRIBED"?"🟢 Tempo real ativo":"🟡 Conectando…"});
+sb.channel("registros-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"registros"},async payload=>{await carregar();$("status").textContent="🟢 Sincronizado"}).subscribe(status=>{$("status").textContent=status==="SUBSCRIBED"?"🟢 Tempo real ativo":"🟡 Conectando…"});
 window.addEventListener("online",()=>{carregar()});window.addEventListener("offline",()=>{$("status").textContent="🔴 SEM INTERNET"});
 const old=identidade();$("nome").value=old.nome;$("entrada").value=old.entrada;if(old.nome)entrar();
 </script></body></html>
