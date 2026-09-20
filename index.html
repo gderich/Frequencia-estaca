@@ -49,7 +49,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 <h2>Como registrar a frequência</h2>
 <p><strong>1.</strong> Pergunte: <strong>“Qual a ala e quantas pessoas?”</strong></p>
 <p><strong>2.</strong> Toque uma única vez na quantidade correspondente. Conte <strong>adultos, jovens e crianças</strong>.</p>
-<p><strong>3.</strong> Pessoas são visitantes que não moram na área de uma das sete alas devem ser registradas em <strong>Visitantes</strong>.</p>
+<p><strong>3.</strong> Pessoas que não pertencem a uma das sete alas devem ser registradas em <strong>Visitantes</strong>.</p>
 <p><strong>4.</strong> Aguarde a confirmação do registro e mantenha o aparelho conectado à internet. Se cometer um erro, use <strong>Desfazer meu último</strong>.</p>
 </div>
 <div class="topstats">
@@ -149,9 +149,10 @@ $("zerar").onclick=async()=>{
  if(!confirm("ATENÇÃO: isto apagará TODOS os registros da contagem atual. Deseja continuar?"))return;
  const confirmacao=prompt('Digite ZERAR para confirmar:');
  if(confirmacao!=="ZERAR"){toast("Operação cancelada");return}
- const {error}=await sb.from("registros").delete().gte("id",0);
- if(error){toast("O banco não permite zerar pelo site. Execute a configuração administrativa no Supabase.");return}
- toast("Contagem zerada");await carregar();
+ const {error}=await sb.rpc("zerar_frequencia",{senha:senha});
+ if(error){toast(error.message && error.message.toLowerCase().includes("senha") ? "Senha incorreta" : "Não foi possível zerar a contagem");return}
+ toast("Contagem zerada com sucesso");
+ await carregar();
 };
 document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");$("recepcao").classList.toggle("hidden",b.dataset.tab!=="recepcao");$("painel").classList.toggle("hidden",b.dataset.tab!=="painel")});
 $("csv").onclick=()=>{let s="data_hora,ala,quantidade,recepcionista,entrada\n"+registros.map(r=>[r.criado_em,r.ala,r.quantidade,r.recepcionista,r.entrada].map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(",")).join("\n");let a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+s],{type:"text/csv"}));a.download="frequencia_estaca_messejana.csv";a.click()};
